@@ -21,13 +21,13 @@ st.title("📈 財經小聚市場動態儀表板")
 
 # 建立與 Google Sheets 的連線
 # 備註：您的試算表共用權限需設為「知道連結的人均可檢視」
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1yyh4nLraAxyeKEbvwJPQsdcb0YrTJ5b1LfIsUXD4n94/edit#gid=0"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1DM6wyfgrJCRYDY3vtPZtTwU3TkaPvw00FMGCnSy8Gpc/edit#gid=0"
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # 讀取 Dashboard 頁籤（跳過前兩行標題資訊）
-    df = conn.read(spreadsheet=SHEET_URL, worksheet="Dashboard", skiprows=2, ttl="10m")
+    # 公開讀取模式使用工作表 gid；Dashboard 的 gid 為 0，標題在第 3 列
+    df = conn.read(spreadsheet=SHEET_URL, worksheet="0", skiprows=2, ttl="10m")
     
     # 週期篩選控制項
     periods = {
