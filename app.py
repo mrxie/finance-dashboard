@@ -159,16 +159,17 @@ def main():
         .block-container {max-width: 1120px; padding: 2rem 1.25rem;}
         h1 {font-size: clamp(1.5rem, 4vw, 2rem) !important;}
         div[data-testid="stRadio"] div[role="radiogroup"] {gap: .4rem;}
-        div[data-testid="stRadio"] label[data-baseweb="radio"] {
+        div[data-testid="stRadio"] label:is([data-baseweb="radio"], [data-testid="stRadioOption"]) {
             border: 1px solid rgba(128,128,128,.3);
-            border-radius: .65rem; padding: .45rem .75rem; margin: 0;
+            border-radius: .65rem; padding: .45rem .75rem; margin: 0; min-height: 44px;
         }
+        div[data-testid="stRadio"] label[data-selected="true"],
         div[data-testid="stRadio"] label:has(input:checked) {
             background: rgba(59,130,246,.12); border-color: #3b82f6;
         }
         @media (max-width: 600px) {
             .block-container {padding: 1.25rem .75rem;}
-            div[data-testid="stRadio"] label[data-baseweb="radio"] {padding: .35rem .5rem;}
+            div[data-testid="stRadio"] label:is([data-baseweb="radio"], [data-testid="stRadioOption"]) {padding: .35rem .5rem;}
         }
         </style>
     """, unsafe_allow_html=True)
