@@ -1,5 +1,8 @@
 import math
+import json
 from datetime import datetime
+from pathlib import Path
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -149,6 +152,81 @@ def show_details(selected, column):
         )
 
 
+def load_news_reports():
+    """Only read checked-in reports; browsing never performs news searches or generation."""
+    folder = Path(__file__).resolve().parent / "news" / "weekly"
+    reports = []
+    for path in sorted(folder.glob("*.json"), reverse=True):
+        report = json.loads(path.read_text(encoding="utf-8"))
+        if report.get("schema_version") != 1:
+            raise ValueError("不支援的週報格式")
+        start = datetime.fromisoformat(report["period_start"])
+        cutoff = datetime.fromisoformat(report["cutoff"])
+        if start.tzinfo is None or cutoff.tzinfo is None or cutoff <= start:
+            raise ValueError("週報期間格式錯誤")
+        titles = set()
+        for region in ("國際", "臺灣"):
+            items = report["sections"][region]
+            if len(items) > 10:
+                raise ValueError("每區最多列出十則新聞")
+            for item in items:
+                date = datetime.strptime(item["date"], "%Y-%m-%d").date()
+                if not start.date() <= date <= cutoff.date():
+                    raise ValueError("新聞日期超出週報期間")
+                if item["title"] in titles:
+                    raise ValueError("週報有重複新聞")
+                titles.add(item["title"])
+                for key in ("title", "summary", "impact", "topic"):
+                    if not isinstance(item[key], str) or not item[key].strip():
+                        raise ValueError("新聞內容不完整")
+                if not item["sources"]:
+                    raise ValueError("新聞缺少來源")
+                for source in item["sources"]:
+                    parsed = urlparse(source["url"])
+                    if (parsed.scheme != "https" or not parsed.netloc
+                            or any(char.isspace() for char in source["url"])):
+                        raise ValueError("新聞來源連結格式錯誤")
+        reports.append(report)
+    return reports
+
+
+def show_news():
+    st.subheader("每週財經週報")
+    try:
+        reports = load_news_reports()
+    except (ValueError, KeyError, TypeError, OSError):
+        st.error("週報暫時無法載入，請稍後再試。")
+        return
+    if not reports:
+        st.info("第一期週報準備中。")
+        return
+    labels = [f'{report["title"]}（{report["status"]}）' for report in reports]
+    choice = st.selectbox("選擇期別", range(len(reports)), format_func=lambda i: labels[i])
+    report = reports[choice]
+    start = datetime.fromisoformat(report["period_start"])
+    cutoff = datetime.fromisoformat(report["cutoff"])
+    st.caption(f'新聞期間：{start:%Y/%m/%d %H:%M} 至 {cutoff:%Y/%m/%d %H:%M}（臺北時間）')
+    st.info(report["notice"])
+    st.caption("依政策、市場與產業影響篩選，同一事件合併呈現；『可能影響』為分析，並非已發生的結果。")
+    region = st.radio("新聞範圍", ["國際", "臺灣"], horizontal=True)
+    items = report["sections"][region]
+    st.markdown(f"**{region}財經新聞 · {len(items)} 則**")
+    if len(items) < 10:
+        st.caption(f"本期已查證並收錄 {len(items)} 則，未滿 10 則，不以重複或無法查證的消息補足。")
+    for index, item in enumerate(items, 1):
+        with st.expander(f'{index:02d}. {item["title"]}（{item["date"][5:]}）'):
+            st.caption(f'{item["date"]} · {item["topic"]}')
+            if item.get("date_note"):
+                st.caption(item["date_note"])
+            st.markdown("**事件摘要**")
+            st.write(item["summary"])
+            st.markdown("**可能影響（分析）**")
+            st.write(item["impact"])
+            for source in item["sources"]:
+                st.link_button(f'閱讀原文：{source["name"]}', source["url"])
+    st.caption(f'本期整理時間：{report["prepared_at"]}。日期為事件或公告發布日，另有差異時個別註明。')
+
+
 def main():
     st.set_page_config(
         page_title="財經小聚市場動態", layout="wide", initial_sidebar_state="collapsed"
@@ -174,6 +252,10 @@ def main():
         </style>
     """, unsafe_allow_html=True)
     st.title("財經小聚市場動態")
+    page = st.radio("內容", ["市場表現", "財經週報"], horizontal=True)
+    if page == "財經週報":
+        show_news()
+        return
     st.caption("比較不同期間的資產表現，選擇你關心的市場。")
     if st.button("重新讀取資料", help="立即向來源重新讀取，不等待 10 分鐘快取。"):
         load_market_data.clear()
